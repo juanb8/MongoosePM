@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Simple Form</title>
+  </head>
+  <body>
+    <h2>Simple Form</h2>
+
+    <input type="text" id="input1" placeholder="First input" />
+    <br /><br />
+
+    <input type="text" id="input2" placeholder="Second input" />
+    <br /><br />
+
+    <button onclick="handleClick()">Submit</button>
+
+    <script>
+      function handleClick() {
+        const value1 = document.getElementById("input1").value;
+        const value2 = document.getElementById("input2").value;
+        alert(`Input 1: ${value1}\nInput 2: ${value2}`);
+      }
+    </script>
+  </body>
+</html>
