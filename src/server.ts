@@ -23,9 +23,12 @@ app.get("/users", async (_req: Request, res: Response): Promise<void> => {
   try {
     const users = await User.find({});
     console.log("Getting users from db", users);
-    users.map((user) => {
-      res.send(JSON.stringify(user) + "\n");
-    });
+    if (users.length > 0)
+      users.map((user) => {
+        res.send(JSON.stringify(user) + "\n");
+      });
+    else
+      res.send("There isn't users \n");
   } catch (err: any) {
     console.log("Database error: ", err.message);
     res.send("Ups, something went horribly wrong :s\n");
