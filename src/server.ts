@@ -3,9 +3,17 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { Database } from "./model/database";
 import User from "./model/user.model";
+import cors from "cors";
 
 const app = express();
+const corsOptions = {
+  origin: '*', // Allow only your frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // Required if you use cookies or sessions
+};
 app.use(express.json());
+app.use(cors(corsOptions));
 
 const port = 3000;
 const __filename = fileURLToPath(import.meta.url);
