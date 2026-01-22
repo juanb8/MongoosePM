@@ -7,6 +7,7 @@ let userSchema = new mongoose.Schema<iUser, UserModel>({
   name: String,
   email: { type: String, unique: true },
   createdOn: { type: Date, default: Date.now },
+  password: { type: String, required: false, select: false },
   modifiedOn: Date,
   lastLogin: Date,
 });
