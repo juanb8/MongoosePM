@@ -4,7 +4,11 @@ import { fileURLToPath } from "url";
 import { Database } from "./model/database";
 import User from "./model/user.model";
 import cors from "cors";
-import { log } from "console";
+
+import { createServer } from "http";
+import { Server, Socket } from "socket.io";
+import type { iUser } from "./interface";
+import type { Model } from "mongoose";
 
 const app = express();
 const corsOptions = {
@@ -24,36 +28,11 @@ const dbURI = "mongodb://localhost:27017/mongoosePM";
 const database = new Database(dbURI);
 database.connect();
 
+
+// server health routes
+
 app.get("/health", (_req: Request, res: Response): void => {
   res.send("Server running!\n");
-});
-
-app.get("/users", async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const users = await User.find({});
-    console.log("Getting users from db", users);
-    if (users.length > 0)
-      users.map((user) => {
-        res.send(JSON.stringify(user) + "\n");
-      });
-    else
-      res.send("There isn't users \n");
-  } catch (err: any) {
-    console.log("Database error: ", err.message);
-    res.send("Ups, something went horribly wrong :s\n");
-  }
-});
-
-app.post("/users", async (req: Request, res: Response): Promise<void> => {
-  const user = new User(req.body);
-  try {
-    await user.save();
-    console.log("Saving user into database: ", JSON.stringify(req.body));
-    res.send("user saved: " + JSON.stringify(req.body) + `/n`);
-  } catch (err: any) {
-    console.log("Getting error: ", err.message);
-    res.send("Couldn't save user. Try later :(\n");
-  }
 });
 
 app.post(
@@ -66,6 +45,8 @@ app.post(
     res.send(message + '\n');
   });
 
+
+// auth routes
 app.post("/api/auth/signup", async (req: Request, res: Response): Promise<void> => {
   const user = new User(req.body);
   try {
@@ -80,45 +61,21 @@ app.post("/api/auth/signup", async (req: Request, res: Response): Promise<void> 
     });
   }
 });
-app.post("/api/auth/check", async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const user = await User.findOne({
-      name: 'pedro primo'
-    });
-    res.send(user);
-  } catch (err: any) {
-    console.log("Getting error: ", err.message);
-    res.send("user not logged in:(\n");
-  }
-});
+
 app.get("/api/auth/check", async (_req: Request, res: Response): Promise<void> => {
   console.log("check auth");
   try {
     const user = await User.findOne({
       name: 'pedro primo'
     });
-    //     res.send(user);
-    res.send(null);
+    res.send(user);
+    //    res.send(null);
     console.log("send: ", JSON.stringify(user));
   } catch (err: any) {
     console.log("Getting error: ", err.message);
     res.send("user not logged in:(\n");
   }
 });
-
-app.get("/api/messages/users",
-  async (_req: Request, res: Response): Promise<void> => {
-    try {
-      const users = await User.find({});
-      res.send(users);
-    } catch (error) {
-      res.status(500).json({
-        status: "internal server error",
-        message: "try again later"
-      });
-    }
-  }
-);
 
 app.post(
   "/api/auth/login",
@@ -149,15 +106,61 @@ app.post(
   }
 );
 
+// message routes
 
-const server = app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+app.get("/api/messages/users",
+  async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const users = await User.find({});
+      res.send(users);
+    } catch (error) {
+      res.status(500).json({
+        status: "internal server error",
+        message: "try again later"
+      });
+    }
+  }
+);
+
+
+
+const httpServer = createServer(app);
+httpServer.listen(3000, (): void => {
+  console.log(`Server listening on port ${port}`);
 });
+
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+  }
+});
+
+io.on("connection", async (socket: Socket) => {
+  console.log("Connection with: ", socket.handshake.query.userId);
+  try {
+    const users = await User.find({});
+    const onlineUsers = users.map((user) => user._id.toString());
+    console.log(
+      "Sending online users: ",
+      onlineUsers
+    );
+    socket.emit(
+      "getOnlineUsers",
+      onlineUsers
+    );
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+//const server = app.listen(port, () => {
+//  console.log(`Example app listening on port ${port}`);
+//});
 
 process.on("SIGINT", async (): Promise<void> => {
   console.log("Gracefull shutdown");
   await database.disconnect();
   console.log("closing server");
-  server.close();
+  httpServer.close();
   process.exit(0);
 });
