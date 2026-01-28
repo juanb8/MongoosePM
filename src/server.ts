@@ -1,14 +1,25 @@
-import express, { response, type Request, type Response } from "express";
+import express, { response, text, type Request, type Response } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Database } from "./model/database";
 import User from "./model/user.model";
 import cors from "cors";
 
+import { faker } from "@faker-js/faker";
+
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
-import type { iUser } from "./interface";
-import type { Model } from "mongoose";
+
+const messages = [
+  {
+    _id: faker.database.mongodbObjectId().toString(),
+    senderId: faker.database.mongodbObjectId().toString(),
+    receiverId: faker.database.mongodbObjectId().toString(),
+    createdAt: (new Date()).toString(),
+    text: 'hello\n'
+  },
+];
+const socketMap: Map<string, Socket> = new Map();
 
 const app = express();
 const corsOptions = {
@@ -52,7 +63,10 @@ app.post("/api/auth/signup", async (req: Request, res: Response): Promise<void> 
   try {
     await user.save();
     console.log("Saving user into database: ", JSON.stringify(req.body));
-    res.send(JSON.stringify(req.body));
+    const resUser = await User.findOne({
+      email: user.email
+    });
+    res.send(JSON.stringify(resUser));
   } catch (err: any) {
     console.log("Getting error: ", err.message);
     res.status(500).json({
@@ -63,18 +77,18 @@ app.post("/api/auth/signup", async (req: Request, res: Response): Promise<void> 
 });
 
 app.get("/api/auth/check", async (_req: Request, res: Response): Promise<void> => {
-  console.log("check auth");
-  try {
-    const user = await User.findOne({
-      name: 'pedro primo'
-    });
-    res.send(user);
-    //    res.send(null);
-    console.log("send: ", JSON.stringify(user));
-  } catch (err: any) {
-    console.log("Getting error: ", err.message);
-    res.send("user not logged in:(\n");
-  }
+  //  try {
+  //    const user = await User.findOne({
+  //      name: 'pedro primo'
+  //    });
+  //    res.send(user);
+  //    //    res.send(null);
+  //    console.log("send: ", JSON.stringify(user));
+  //  } catch (err: any) {
+  //    console.log("Getting error: ", err.message);
+  //    res.send("user not logged in:(\n");
+  //  }
+  res.status(401).send();
 });
 
 app.post(
@@ -95,6 +109,8 @@ app.post(
       if (!user)
         throw new Error("not a current user");
       // send user
+      console.log("user logged: ", user._id.toString());
+
       res.send(user);
     } catch (error: any) {
       console.log("couldn't find: ", JSON.stringify(req.body));
@@ -122,7 +138,43 @@ app.get("/api/messages/users",
   }
 );
 
+app.get("/api/messages/:userId",
+  async (req: Request, res: Response): Promise<void> => {
+    console.log("requested messages from: ", req.params.userId);
+    res.send(messages);
+  }
+);
 
+app.post(
+  "/api/messages/send/:userId",
+  async (req: Request, res: Response): Promise<void> => {
+    console.log("Message send to userId: ", req.params.userId);
+    console.log("message content: ", JSON.stringify(req.body));
+    try {
+      const user = await User.findOne({
+        _id: req.body.senderId
+      });
+
+      const message = {
+        _id: faker.database.mongodbObjectId().toString(),
+        senderId: user?._id,
+        receiverId: req.params.userId,
+        text: req.body.text,
+        img: req.body.img,
+        createdAt: new Date(),
+      };
+      const socket = socketMap.get(req.params.userId as string);
+      socket?.emit("newMessage",
+        message
+      );
+      res.status(200).send(
+        message
+      );
+    } catch (error) {
+      res.status(500).send("ups, there's an error");
+    }
+  }
+);
 
 const httpServer = createServer(app);
 httpServer.listen(3000, (): void => {
@@ -135,11 +187,19 @@ const io = new Server(httpServer, {
   }
 });
 
+function setSocketMap(userId: string, socket: Socket): void {
+  socketMap.set(userId, socket);
+}
+
 io.on("connection", async (socket: Socket) => {
-  console.log("Connection with: ", socket.handshake.query.userId);
+  const userId = socket.handshake.query.userId;
+  console.log("Connection with: ", userId);
+  setSocketMap(userId, socket);
   try {
-    const users = await User.find({});
-    const onlineUsers = users.map((user) => user._id.toString());
+    //    const users = await User.find({});
+    //    const onlineUsers = users.map((user) => user._id.toString());
+
+    const onlineUsers = Array.from(socketMap.keys());
     console.log(
       "Sending online users: ",
       onlineUsers
